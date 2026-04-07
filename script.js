@@ -9,7 +9,7 @@ const url = "https://opensheet.elk.sh/1lTNia31AF5mr-Gkv06KQr9la0SRhxBE0a5tf_0iyL
 /* =========================
    🗺️ КАРТА
 ========================= */
-const map = L.map('map', { preferCanvas: true }).setView(defaultView, defaultZoom);
+const map = L.map('map', { preferCanvas: true, closePopupOnClick: false }).setView(defaultView, defaultZoom);
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
@@ -41,10 +41,11 @@ const statusColors = {
 const allowedMobileClientStatuses = new Set([
   "подключен",
   "отключен",
+  "есть возможность подключения",
   "идет подключение"
 ]);
 
-let mobileStatusFilter = "all";
+let mobileStatusFilters = new Set();
 
 /* =========================
    🚀 PWA + ЗАГРУЗКА
@@ -181,6 +182,28 @@ function hideMobileKeyboard() {
   if (searchClient) searchClient.blur();
 }
 
+function consumeMobileDismissTap() {
+  const isMobileViewport = window.matchMedia("(max-width: 768px)").matches;
+  if (!isMobileViewport) return false;
+
+  const leftPanel = document.getElementById("leftPanel");
+  const rightPanel = document.getElementById("rightPanel");
+  const bottomSheet = document.getElementById("bottomSheet");
+
+  const hasOpenPanel =
+    (leftPanel && leftPanel.classList.contains("open")) ||
+    (rightPanel && rightPanel.classList.contains("open"));
+  const hasOpenBottomSheet = bottomSheet && bottomSheet.classList.contains("open");
+
+  if (!hasOpenPanel && !hasOpenBottomSheet) return false;
+
+  if (leftPanel) leftPanel.classList.remove("open");
+  if (rightPanel) rightPanel.classList.remove("open");
+  if (hasOpenBottomSheet) closeBottomSheet();
+  document.body.classList.remove("panel-open");
+  return true;
+}
+
 /* =========================
    🔄 КАРТА
 ========================= */
@@ -208,6 +231,7 @@ function updateAll(data) {
     m._baseColor = color;
 
     m.on("click", function () {
+      if (consumeMobileDismissTap()) return;
       setActiveMarker(m);
       openBottomSheet(c);
     });
@@ -317,7 +341,7 @@ function getFilteredData() {
 
     if (p && !prov.includes(p)) return false;
     if (s.length && !s.includes(stat)) return false;
-    if (mobileStatusFilter !== "all" && stat !== mobileStatusFilter) return false;
+    if (mobileStatusFilters.size && !mobileStatusFilters.has(stat)) return false;
 
     return true;
   });
@@ -404,7 +428,16 @@ function bindMobileStatusStrip() {
   strip.addEventListener("click", function (event) {
     const btn = event.target.closest("[data-mobile-status]");
     if (!btn) return;
-    mobileStatusFilter = btn.dataset.mobileStatus || "all";
+
+    const status = btn.dataset.mobileStatus || "all";
+    if (status === "all") {
+      mobileStatusFilters.clear();
+    } else if (mobileStatusFilters.has(status)) {
+      mobileStatusFilters.delete(status);
+    } else {
+      mobileStatusFilters.add(status);
+    }
+
     updateMobileStatusStripUI();
     applyFilters();
   });
@@ -413,8 +446,12 @@ function bindMobileStatusStrip() {
 function updateMobileStatusStripUI() {
   const strip = document.getElementById("mobileStatusStrip");
   if (!strip) return;
+
   strip.querySelectorAll("[data-mobile-status]").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.mobileStatus === mobileStatusFilter);
+    const status = btn.dataset.mobileStatus || "all";
+    const isAll = status === "all";
+    const isActive = isAll ? mobileStatusFilters.size === 0 : mobileStatusFilters.has(status);
+    btn.classList.toggle("active", isActive);
   });
 }
 
@@ -643,6 +680,7 @@ window.populateClients = function() {
   container.innerHTML = '';
   const filteredClients = getFilteredData()
     .filter(c => allowedMobileClientStatuses.has(clean(c.status)))
+    .filter(c => clean(c.status) !== "есть возможность подключения")
   updateClientsSummary(filteredClients);
 
   filteredClients.forEach((c, idx) => {
@@ -748,7 +786,7 @@ function resetFilters() {
   const status = document.getElementById("searchStatus");
   if (provider) provider.value = "";
   if (status) [...status.options].forEach(o => (o.selected = false));
-  mobileStatusFilter = "all";
+  mobileStatusFilters.clear();
   updateMobileStatusStripUI();
   updateAll(allData);
   if (document.body.getAttribute("data-tab") === "clients" && typeof window.populateClients === "function") {
@@ -767,7 +805,7 @@ function resetAll() {
   if (addr) addr.value = "";
   if (provider) provider.value = "";
   if (status) [...status.options].forEach(o => (o.selected = false));
-  mobileStatusFilter = "all";
+  mobileStatusFilters.clear();
   updateMobileStatusStripUI();
   if (searchMarker) {
     map.removeLayer(searchMarker);
@@ -835,6 +873,8 @@ function closeClientModal() {
    🖱️ ДОП. ДЕСКТОП-ЛОГИКА
 ========================= */
 map.on("click", function (e) {
+  if (consumeMobileDismissTap()) return;
+
   const lat = e.latlng.lat;
   const lon = e.latlng.lng;
   if (searchMarker) map.removeLayer(searchMarker);

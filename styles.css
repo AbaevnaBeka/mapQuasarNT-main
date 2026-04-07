@@ -161,6 +161,10 @@ body {
   }
 
   @media (min-width: 769px) {
+    .collapse-btn {
+      display: none;
+    }
+
     .left-panel.collapsed, .right-panel.collapsed {
       width: 40px !important;
       min-width: 40px !important;
@@ -501,9 +505,7 @@ button:hover {
   }
 
   .mobile-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    display: none;
   }
 
   body.panel-open {
@@ -809,6 +811,10 @@ button:hover {
 
   .summary-offline .summary-value {
     color: #b12822;
+  }
+
+  .summary-available .summary-value {
+    color: #9a6b00;
   }
 
   .summary-pending .summary-value {
