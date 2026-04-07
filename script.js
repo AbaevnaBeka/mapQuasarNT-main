@@ -16,6 +16,8 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').ad
 let markerCluster = L.markerClusterGroup();
 map.addLayer(markerCluster);
 
+let isShowingClientOnMap = false;
+
 /* =========================
    📦 ДАННЫЕ
 ========================= */
@@ -145,11 +147,16 @@ function setActiveMarker(marker) {
   }
 }
 
+function getClientPopupContent(c) {
+  return `<b>${c.name || "Клиент"}</b><br>${c.address || "Адрес не указан"}<br>📡 ${c.provider || "Провайдер не указан"}<br>📶 ${c.status || "Статус не указан"}`;
+}
+
 function showClientOnMap(c) {
   const lat = parseFloat((c.lat + "").replace(',', '.'));
   const lng = parseFloat((c.lng + "").replace(',', '.'));
   if (isNaN(lat) || isNaN(lng)) return;
 
+  isShowingClientOnMap = true;
   closeBottomSheet();
   setTab("map");
 
@@ -162,11 +169,16 @@ function showClientOnMap(c) {
   }
 
   map.flyTo([lat, lng], 16, { duration: 1.2 });
-  if (!marker) return;
+  if (!marker) {
+    isShowingClientOnMap = false;
+    return;
+  }
 
   markerCluster.zoomToShowLayer(marker, function () {
     setActiveMarker(marker);
-    openBottomSheet(c);
+
+    marker.bindPopup(getClientPopupContent(c)).openPopup();
+    setTimeout(() => { isShowingClientOnMap = false; }, 100);
   });
 }
 
@@ -183,6 +195,8 @@ function hideMobileKeyboard() {
 }
 
 function consumeMobileDismissTap() {
+  if (isShowingClientOnMap) return false;
+
   const isMobileViewport = window.matchMedia("(max-width: 768px)").matches;
   if (!isMobileViewport) return false;
 
@@ -230,9 +244,13 @@ function updateAll(data) {
     });
     m._baseColor = color;
 
-    m.on("click", function () {
+    m.on("click", function (event) {
+      if (event && event.originalEvent) {
+        L.DomEvent.stopPropagation(event.originalEvent);
+      }
       if (consumeMobileDismissTap()) return;
       setActiveMarker(m);
+      m.bindPopup(getClientPopupContent(c)).openPopup();
       openBottomSheet(c);
     });
 

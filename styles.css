@@ -603,6 +603,9 @@ button:hover {
     background: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(10px);
     font-weight: 600;
+    min-width: 0;
+    white-space: nowrap;
+    font-size: 14px;
   }
 
   .mobile-menu {
